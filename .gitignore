@@ -1,0 +1,35 @@
+# Python basics
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.env/
+.venv/
+venv/
+
+# Database
+download_history.db
+
+# Logs and outputs
+*.log
+*.sqlite
+wallpapers/
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# OS generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+# Local development
+.env
+local_settings.py

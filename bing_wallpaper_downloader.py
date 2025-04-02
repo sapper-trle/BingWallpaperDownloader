@@ -127,21 +127,21 @@ def download_wallpaper(
         if conn:
             record_download(conn, filepath, sha_hash, url)
 
-            # Auto-cleanup old entries
-            if cleanup_days:
-                cutoff = datetime.now() - timedelta(days=cleanup_days)
-                c.execute(
-                    "DELETE FROM downloads WHERE download_date < ?",
-                    (cutoff.isoformat(),),
-                )
-                conn.commit()
-
         print(f"Downloaded: {filepath}")
         return True
 
     except Exception as e:
         print(f"Download failed: {e}")
         return False
+
+def cleanup_old_entries(conn, days):
+    cutoff = datetime.now() - timedelta(days=days)
+    c = conn.cursor()
+    c.execute(
+        "DELETE FROM downloads WHERE download_date < ?",
+        (cutoff.isoformat(),),
+    )
+    conn.commit()
 
 
 if __name__ == "__main__":
@@ -184,6 +184,11 @@ if __name__ == "__main__":
         c.execute("SELECT * FROM downloads ORDER BY download_date DESC")
         for row in c.fetchall():
             print(f"[{row[3]}] {row[1]} (SHA256: {row[2][:16]}...)")
+        conn.close()
+        exit(0)
+
+    if args.cleanup_days:
+        cleanup_old_entries(conn, args.cleanup_days)
         conn.close()
         exit(0)
 

@@ -219,3 +219,4 @@ if __name__ == "__main__":
         print("Failed to find wallpaper URL")
         conn.close()
         exit(1)
+

@@ -48,7 +48,7 @@ Wallpapers will be saved in the format:
   python bing_wallpaper_downloader.py --cleanup-days 30
   ```
 
-## New API Features
+## API Features
 
 ### API Mode Parameters
 ```bash
@@ -130,3 +130,4 @@ systemctl --user list-timers
 ### View Logs
 ```bash
 journalctl --user -u bing-wallpaper.service -f
+```

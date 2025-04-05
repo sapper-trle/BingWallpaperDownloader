@@ -60,7 +60,7 @@ Wallpapers will be saved in the format:
 
 ### Usage Examples
 ```bash
-# 🌅 Default web scraping mode
+# 🌅 Default ~~web scraping~~ API mode
 python bing_wallpaper_downloader.py
 
 # 🇨🇳 API mode with 4K Japanese content

@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import os
 from datetime import datetime, timedelta
 import re
+import sys
 
 
 def get_bing_wallpaper_url():
@@ -37,7 +38,7 @@ def get_bing_wallpaper_url():
         return None
 
 
-def get_bing_wallpaper_via_api(resolution="UHD", mkt="zh-CN", index=0):
+def get_bing_wallpaper_via_api(resolution="1920x1080", mkt="en-AU", index=0):
     try:
         params = {
             "resolution": resolution,
@@ -80,11 +81,12 @@ def file_hash(content):
     return hashlib.sha256(content).hexdigest()
 
 
-def record_download(conn, filepath, sha_hash, url):
+def record_download(conn, filepath, sha_hash, url, date):
     c = conn.cursor()
     c.execute(
         "INSERT OR IGNORE INTO downloads VALUES (NULL,?,?,?,?)",
-        (filepath, sha_hash, datetime.now().isoformat(), url),
+        #~(filepath, sha_hash, datetime.now().isoformat(), url),
+        (filepath, sha_hash, date.isoformat(), url),
     )
     conn.commit()
 
@@ -115,7 +117,7 @@ def download_wallpaper(
                 return True
 
         # Create filename
-        filename = url.split("id=")[1].split("&")[0]
+        filename = url.split("id=OHR.")[1].split("&")[0]
         date_str = wallpaper_date or datetime.now().strftime("%Y-%m-%d")
         filepath = os.path.join(save_dir, f"{date_str}_{filename}")
 
@@ -125,7 +127,7 @@ def download_wallpaper(
 
         # Record in history
         if conn:
-            record_download(conn, filepath, sha_hash, url)
+            record_download(conn, filepath, sha_hash, url, datetime.fromisoformat(date_str))
 
         print(f"Downloaded: {filepath}")
         return True
@@ -135,13 +137,36 @@ def download_wallpaper(
         return False
 
 def cleanup_old_entries(conn, days):
-    cutoff = datetime.now() - timedelta(days=days)
     c = conn.cursor()
+    days *= -1
+    cutoff = datetime.now().date() - timedelta(days=days)
+    c.execute(
+        "SELECT * FROM downloads WHERE download_date < ?",
+        (cutoff.isoformat(),),
+    )
+    l = c.fetchall()
+    if not l:
+        print(f"No entries older than {cutoff}")
+        return  False
+    print(f"Deleting entries older than {cutoff}")
     c.execute(
         "DELETE FROM downloads WHERE download_date < ?",
         (cutoff.isoformat(),),
     )
     conn.commit()
+    return True
+    
+def history(conn):
+    c = conn.cursor()
+    c.execute("SELECT * FROM downloads ORDER BY download_date DESC")
+    l = c.fetchall()
+    if not l:
+        print("No database entries")
+        return False
+    else:
+        for row in l:
+            print(f"[{row[3]}] {row[1]} (SHA256: {row[2][:16]}...)")
+        return True
 
 
 if __name__ == "__main__":
@@ -154,7 +179,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--history", action="store_true", help="Show download history")
     parser.add_argument(
-        "--cleanup-days", type=int, help="Delete history entries older than X days"
+        "--cleanup-days", type=int, help="Delete history entries older than X days (..., -2=2 days ago, -1=yesterday, 0=today, +1=tomorrow)"
     )
     parser.add_argument(
         "--use-api",
@@ -163,32 +188,33 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--resolution",
-        default="UHD",
-        help="Image resolution for API mode (default: UHD)",
+        default="1920x1080",
+        help="Image resolution for API mode (default: 1980x1080)",
     )
     parser.add_argument(
-        "--region", default="zh-CN", help="Region code for API mode (default: zh-CN)"
+        "--region", default="en-AU", help="Region code for API mode (default: en-AU)"
     )
     parser.add_argument(
         "--index",
         type=int,
         default=0,
-        help="Wallpaper index for API mode (0=today, 1=yesterday, etc)",
+        help="Wallpaper index for API mode (0=today, 1=yesterday, 2=2 days ago, etc)",
     )
-    args = parser.parse_args()
+    l = sys.argv[1:]
+    l.append("--use-api")
+    args = parser.parse_args(l)
 
     conn = init_db()
 
     if args.history:
-        c = conn.cursor()
-        c.execute("SELECT * FROM downloads ORDER BY download_date DESC")
-        for row in c.fetchall():
-            print(f"[{row[3]}] {row[1]} (SHA256: {row[2][:16]}...)")
+        history(conn)
         conn.close()
         exit(0)
 
-    if args.cleanup_days:
-        cleanup_old_entries(conn, args.cleanup_days)
+    if args.cleanup_days != None:
+        if history(conn):
+            if cleanup_old_entries(conn, args.cleanup_days):
+                history(conn)
         conn.close()
         exit(0)
 
@@ -219,4 +245,3 @@ if __name__ == "__main__":
         print("Failed to find wallpaper URL")
         conn.close()
         exit(1)
-

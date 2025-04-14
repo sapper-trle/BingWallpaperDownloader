@@ -227,6 +227,8 @@ if __name__ == "__main__":
             print(
                 f"Found {api_data['date']} wallpaper via API: {api_data['copyright']}"
             )
+        else:
+            wallpaper_url = None # if get_bing_wallpaper_via_api fails, wallpaper_url no longer undefined
     else:
         wallpaper_url = get_bing_wallpaper_url()
 

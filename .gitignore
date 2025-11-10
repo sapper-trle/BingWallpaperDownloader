@@ -13,7 +13,7 @@ download_history.db
 # Logs and outputs
 *.log
 *.sqlite
-wallpapers/
+BingWallpapers/
 
 # IDE specific
 .vscode/

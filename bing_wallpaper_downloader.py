@@ -1,3 +1,18 @@
+# python 3.10.11
+
+# Author: https://github.com/xTayEx/BingWallpaperDownloader
+# See original repository for instructions
+# Modified by sapper.trle to enable script to be imported
+
+### Notes
+# Hardcoded to download Bing Wallpaper using API and not URL
+# Default market is en-AU
+# Default resolution is 1920x1080
+# Creates a database of downloaded image hashes, "download_history.db", in script directory
+# Defaults to storing downloaded images in "BingWallpapers" directory created in script directory
+# install pip-system-certs package if get SSL certificate errors using API method
+###
+
 import argparse
 import sqlite3
 import hashlib
@@ -7,7 +22,6 @@ import os
 from datetime import datetime, timedelta
 import re
 import sys
-
 
 def get_bing_wallpaper_url():
     try:
@@ -46,7 +60,7 @@ def get_bing_wallpaper_via_api(resolution="1920x1080", mkt="en-AU", index=0):
             "index": index,
             "mkt": mkt,
         }
-        response = requests.get("https://bing.biturl.top", params=params, timeout=10)
+        response = requests.get("https://bing.biturl.top", params=params, timeout=10)#, verify=False)
         response.raise_for_status()
         data = response.json()
         return {
@@ -85,7 +99,6 @@ def record_download(conn, filepath, sha_hash, url, date):
     c = conn.cursor()
     c.execute(
         "INSERT OR IGNORE INTO downloads VALUES (NULL,?,?,?,?)",
-        #~(filepath, sha_hash, datetime.now().isoformat(), url),
         (filepath, sha_hash, date.isoformat(), url),
     )
     conn.commit()
@@ -93,12 +106,11 @@ def record_download(conn, filepath, sha_hash, url, date):
 
 def download_wallpaper(
     url,
-    save_dir="wallpapers",
+    save_dir="BingWallpapers",
     override=False,
     conn=None,
-    cleanup_days=None,
     wallpaper_date=None,
-):
+    ):
     try:
         os.makedirs(save_dir, exist_ok=True)
 
@@ -113,14 +125,13 @@ def download_wallpaper(
             c = conn.cursor()
             c.execute("SELECT 1 FROM downloads WHERE sha256=?", (sha_hash,))
             if c.fetchone():
-                print(f"Skipping duplicate (SHA256: {sha_hash[:16]}...)")
-                return True
+                print(f"Downloaded previously (SHA256: {sha_hash[:16]}...)")
+                return None
 
         # Create filename
         filename = url.split("id=OHR.")[1].split("&")[0]
         date_str = wallpaper_date or datetime.now().strftime("%Y-%m-%d")
         filepath = os.path.join(save_dir, f"{date_str}_{filename}")
-
         # Write file
         with open(filepath, "wb") as f:
             f.write(content)
@@ -130,11 +141,11 @@ def download_wallpaper(
             record_download(conn, filepath, sha_hash, url, datetime.fromisoformat(date_str))
 
         print(f"Downloaded: {filepath}")
-        return True
+        return filepath
 
     except Exception as e:
         print(f"Download failed: {e}")
-        return False
+        return None
 
 def cleanup_old_entries(conn, days):
     c = conn.cursor()
@@ -168,11 +179,10 @@ def history(conn):
             print(f"[{row[3]}] {row[1]} (SHA256: {row[2][:16]}...)")
         return True
 
-
-if __name__ == "__main__":
+def main(override=False, idx=None):
     parser = argparse.ArgumentParser(description="Bing Wallpaper Downloader")
     parser.add_argument(
-        "-f", "--filepath", default="wallpapers", help="Custom save directory"
+        "-f", "--filepath", default="BingWallpapers", help="Custom save directory"
     )
     parser.add_argument(
         "--override", action="store_true", help="Overwrite existing files"
@@ -202,6 +212,11 @@ if __name__ == "__main__":
     )
     l = sys.argv[1:]
     l.append("--use-api")
+    if override:
+        l.append("--override")
+    if not (idx is None):
+        l.append("--index")
+        l.append(f"{idx}")
     args = parser.parse_args(l)
 
     conn = init_db()
@@ -209,15 +224,15 @@ if __name__ == "__main__":
     if args.history:
         history(conn)
         conn.close()
-        exit(0)
+        return None
 
-    if args.cleanup_days != None:
+    if not (args.cleanup_days is None):
         if history(conn):
             if cleanup_old_entries(conn, args.cleanup_days):
                 history(conn)
         conn.close()
-        exit(0)
-
+        return None
+        
     if args.use_api:
         api_data = get_bing_wallpaper_via_api(
             resolution=args.resolution, mkt=args.region, index=args.index
@@ -228,7 +243,7 @@ if __name__ == "__main__":
                 f"Found {api_data['date']} wallpaper via API: {api_data['copyright']}"
             )
         else:
-            wallpaper_url = None # if get_bing_wallpaper_via_api fails, wallpaper_url no longer undefined
+            wallpaper_url = None
     else:
         wallpaper_url = get_bing_wallpaper_url()
 
@@ -238,12 +253,15 @@ if __name__ == "__main__":
             save_dir=args.filepath,
             override=args.override,
             conn=conn,
-            cleanup_days=args.cleanup_days,
             wallpaper_date=api_data["date"] if args.use_api else None,
         )
         conn.close()
-        exit(0 if success else 1)
+        return success
     else:
         print("Failed to find wallpaper URL")
         conn.close()
-        exit(1)
+        return None
+
+if __name__ == "__main__":
+    main()
+    
